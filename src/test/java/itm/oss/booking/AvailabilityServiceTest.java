@@ -1,13 +1,14 @@
 package itm.oss.booking;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Set;
-
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -229,5 +230,38 @@ class AvailabilityServiceTest {
 
         assertEquals(1, result.size());
         assertEquals("r2", result.get(0).getId());
+    }
+
+    @Test
+    @DisplayName("Order of remaining rooms is preserved when some rooms are filtered out")
+    void keepsInputOrderWhenSomeRoomsAreFilteredOut() {
+        List<Room> rooms = List.of(room("r3", 6), room("r1", 2), room("r2", 6), room("r4", 6));
+        List<Booking> bookings = List.of(
+                booking("r4", "2026-10-20T10:00", "2026-10-20T11:00", BookingStatus.ACTIVE)); // r4 is booked
+
+        List<Room> result = AvailabilityService.findAvailableRooms(rooms, bookings,
+                sToTime("2026-10-20T10:00"), sToTime("2026-10-20T11:00"), 4);
+
+        // r1 is too small and r4 is booked, so only r3 and r2 remain, still in input order
+        assertEquals(2, result.size());
+        assertEquals("r3", result.get(0).getId());
+        assertEquals("r2", result.get(1).getId());
+    }
+
+    @Test
+    @DisplayName("Room ID matching is exact: booking for R1 does not block room r1")
+    void roomIdMatchingIsExact() {
+        List<Room> rooms = List.of(room("r1", 6));
+        LocalDateTime start = sToTime("2026-10-20T10:00");
+        LocalDateTime end = sToTime("2026-10-20T11:00");
+
+        List<Booking> otherIdBooking = List.of(
+                booking("R1", "2026-10-20T10:00", "2026-10-20T11:00", BookingStatus.ACTIVE));
+        List<Booking> sameIdBooking = List.of(
+                booking("r1", "2026-10-20T10:00", "2026-10-20T11:00", BookingStatus.ACTIVE));
+
+        assertAll(
+                () -> assertEquals(1, AvailabilityService.findAvailableRooms(rooms, otherIdBooking, start, end, 4).size()),
+                () -> assertTrue(AvailabilityService.findAvailableRooms(rooms, sameIdBooking, start, end, 4).isEmpty()));
     }
 }
